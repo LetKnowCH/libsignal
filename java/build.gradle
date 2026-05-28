@@ -111,18 +111,13 @@ subprojects { subproject ->
         subproject.extensions.configure(PublishingExtension) { publishing ->
             publishing.repositories {
                 maven {
+                    name = "AWSCodeArtifact"
+                    url = subproject.uri("https://letknowmessenger-598120810919.d.codeartifact.ap-southeast-1.amazonaws.com/maven/maven/")
+                    credentials {
+                        username = "aws"
+                        password = System.getenv("CODEARTIFACT_AUTH_TOKEN")
+                    }
                     name = "SignalBuildArtifacts"
-                    // We can't use Gradle's built-in GCS support with the way we authenticate
-                    // GitHub Actions. Fortunately, GCS's REST APIs are basically just normal HTTP
-                    // GET/PUT with an auth token, which is compatible with what Gradle will do.
-                    url = subproject.uri("https://storage.googleapis.com/build-artifacts.signal.org/libraries/maven")
-                    credentials(HttpHeaderCredentials) {
-                        name = "Authorization"
-                        value = "Bearer ${System.getenv("CLOUDSDK_AUTH_ACCESS_TOKEN") ?: ""}"
-                    }
-                    authentication {
-                        header(HttpHeaderAuthentication)
-                    }
                 }
             }
         }
