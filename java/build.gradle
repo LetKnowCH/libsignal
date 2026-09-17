@@ -112,7 +112,7 @@ subprojects { subproject ->
             publishing.repositories {
                 maven {
                     name = "AWSCodeArtifact"
-                    url = subproject.uri("https://letknowmessenger-598120810919.d.codeartifact.ap-southeast-1.amazonaws.com/maven/maven/")
+                    url = subproject.uri("https://letknowmessenger-212611342729.d.codeartifact.eu-central-1.amazonaws.com/maven/maven/")
                     credentials {
                         username = "aws"
                         password = System.getenv("CODEARTIFACT_AUTH_TOKEN")

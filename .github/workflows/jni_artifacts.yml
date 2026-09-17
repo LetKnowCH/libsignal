@@ -183,13 +183,13 @@ jobs:
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # 6.1.3
       with:
-        role-to-assume: arn:aws:iam::598120810919:role/github-actions-maven-publisher
-        aws-region: ap-southeast-1
+        role-to-assume: arn:aws:iam::212611342729:role/github-actions-maven-publisher
+        aws-region: eu-central-1
 
     - name: Get CodeArtifact Token
       id: codeartifact-token
       run: |
-        TOKEN=$(aws codeartifact get-authorization-token --domain letknowmessenger --domain-owner 598120810919 --query authorizationToken --output text)
+        TOKEN=$(aws codeartifact get-authorization-token --domain letknowmessenger --domain-owner 212611342729 --query authorizationToken --output text)
         echo "::add-mask::$TOKEN"
         echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
