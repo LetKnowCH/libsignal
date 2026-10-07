@@ -67,7 +67,7 @@ testing_logger = { workspace = true }
 tokio = { workspace = true, features = ["test-util", "time", "macros"] }
 
 [features]
-ffi = ["libsignal-bridge-types/ffi"]
+ffi = ["libsignal-bridge-types/ffi", "attest/nitro"]
 jni = ["dep:jni", "libsignal-bridge-types/jni"]
 node = ["neon", "linkme", "libsignal-bridge-types/node"]
 signal-media = ["dep:signal-media", "libsignal-bridge-types/signal-media"]

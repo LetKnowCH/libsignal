@@ -2,6 +2,63 @@
 
 This is a binding to the Signal client code in rust/, implemented on top of the C FFI produced by rust/bridge/ffi/. It's set up as a CocoaPod for integration into the Signal iOS client and as a Swift Package for local development.
 
+## LetKnow stage CDSI (0.94.1-letknow.1)
+
+Use the matching source tag and binary archive from the LetKnow release.
+The archive supplies arm64 device and arm64/x86_64 simulator libraries.
+Verify its SHA-256 checksum and compare `ios-source-revision.txt` with the source commit.
+Extract the archive into the matching checkout and use a local CocoaPod:
+
+```ruby
+pod 'LibSignalClient', path: '../libsignal'
+```
+
+Run `pod install` in the app repository. Keep the CocoaPods module settings described below.
+The local pod uses these libraries directly. It does not download the Signal archive.
+
+The complete LetKnow transport is available on iOS 15 and later:
+
+```swift
+let discovery = try NitroContactDiscovery.letKnowStage()
+let result = try await discovery.lookup(
+    username: credentials.username,
+    password: credentials.password,
+    newE164s: phoneNumbers,
+    accessKeys: knownAccessKeys,
+    onToken: { token in
+        // Save the token and this request's full phone-number set atomically.
+        try await tokenStore.save(token, numbers: phoneNumbers)
+    }
+)
+```
+
+`credentials` come from the chat server's authenticated `GET /v2/directory/auth` endpoint.
+`phoneNumbers` is `[UInt64]`, without the `+` prefix. The maximum is 1,000 numbers.
+`knownAccessKeys` contains `NitroContactDiscovery.AccessKey` values with an ACI UUID and its 16-byte UAK.
+`tokenStore` is application-owned storage; the sample names are integration placeholders.
+
+The result contains each requested number, optional PNI, optional ACI, token and permit count.
+An absent number has no identifiers. ACI requires a matching UAK; PNI does not.
+Handle `Failure.unauthorized` by obtaining fresh credentials.
+Handle `Failure.rateLimited` using its retry delay.
+On `Failure.invalidToken`, clear the token and previous-number set, then make a fresh lookup.
+On other failures, retain the last saved token and its number set for a retry.
+
+For incremental lookup, pass the saved token and `previousE164s`.
+Move removed numbers into `discardE164s`; put added numbers in `newE164s`.
+Save the replacement token with `previousE164s + newE164s` before `onToken` returns.
+A charged token lets the client reuse previous numbers without another lookup charge.
+Tokens expire after 24 hours. Keep separate state for each authenticated account.
+
+The stage endpoint is `wss://chat.stage.letknow.info:8443/v1/nitro/discovery`.
+`letKnowStage()` includes the LetKnow TLS root and approved Nitro measurements.
+TLS hostname checks, AWS attestation, fresh challenges and PQ Noise remain mandatory.
+An enclave image update requires a matching trusted SDK policy update.
+Use this API for LetKnow discovery; the original `Net.cdsiLookup` retains its SGX service path.
+
+The **Release - iOS** workflow builds the same three architectures.
+Use `dry_run: true` for a workflow artifact, or a version tag with `dry_run: false` for a release.
+
 
 # Use as CocoaPod
 

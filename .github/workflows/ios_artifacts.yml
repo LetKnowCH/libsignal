@@ -5,7 +5,7 @@ on:
     inputs:
       dry_run:
         description: "Just build, don't publish"
-        default: false
+        default: true
         required: false
         type: boolean
 
@@ -19,12 +19,10 @@ jobs:
     permissions:
       # Needed for ncipollo/release-action.
       contents: 'write'
-      # Needed for google-github-actions/auth.
-      id-token: 'write'
 
-    runs-on: macos-15-xlarge
+    runs-on: macos-15
 
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -52,7 +50,7 @@ jobs:
 
     - run: rustup toolchain install "$(cat rust-toolchain)" --profile minimal --target x86_64-apple-ios,aarch64-apple-ios,aarch64-apple-ios-sim --component rust-src
 
-    - run: brew install protobuf
+    - run: brew install protobuf cmake
 
     - name: Build for x86_64-apple-ios
       run: swift/build_ffi.sh --release
@@ -69,7 +67,11 @@ jobs:
       env:
         CARGO_BUILD_TARGET: aarch64-apple-ios-sim
 
-    - run: tar -c --auto-compress --no-mac-metadata -f '${{ steps.archive-name.outputs.name }}' target/*/release/libsignal_ffi.a
+    - name: Record source revision
+      run: |
+        git rev-parse HEAD > ios-source-revision.txt
+
+    - run: tar -c --auto-compress --no-mac-metadata -f '${{ steps.archive-name.outputs.name }}' ios-source-revision.txt target/*/release/libsignal_ffi.a
 
     - run: shasum -a 256 '${{ steps.archive-name.outputs.name }}' | tee -a "$GITHUB_STEP_SUMMARY" '${{ steps.archive-name.outputs.name }}.sha256'
       shell: bash # Explicitly setting the shell turns on pipefail in GitHub Actions
@@ -77,26 +79,17 @@ jobs:
     - name: Attach artifact to the run
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
-        path: ${{ steps.archive-name.outputs.name }}
+        path: |
+          ${{ steps.archive-name.outputs.name }}
+          ${{ steps.archive-name.outputs.name }}.sha256
         name: libsignal-client-ios
-
-    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-      if: ${{ !inputs.dry_run }}
-      with:
-        workload_identity_provider: 'projects/741367068918/locations/global/workloadIdentityPools/github/providers/github-actions'
-        service_account: 'github-actions@signal-build-artifacts.iam.gserviceaccount.com'
-
-    - uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
-      if: ${{ !inputs.dry_run }}
-      with:
-        path: ${{ steps.archive-name.outputs.name }}
-        destination: build-artifacts.signal.org/libraries
+        if-no-files-found: error
 
     # This step is expected to fail if not run on a tag.
-    - name: Upload checksum to release
+    - name: Upload archive and checksum to this repository's release
       uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20
       if: ${{ !inputs.dry_run }}
       with:
         allowUpdates: true
         artifactErrorsFailBuild: true
-        artifacts: ${{ steps.archive-name.outputs.name }}.sha256
+        artifacts: ${{ steps.archive-name.outputs.name }},${{ steps.archive-name.outputs.name }}.sha256

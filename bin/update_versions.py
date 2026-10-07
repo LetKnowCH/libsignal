@@ -71,6 +71,10 @@ def main() -> int:
     found_versions = collections.defaultdict(list)
     for (path, pattern) in VERSION_FILES:
         version = read_version(path, pattern)
+        if path == 'LibSignalClient.podspec':
+            # The iOS package has its own LetKnow release revision.
+            # Its upstream base version must still match every other binding.
+            version = re.sub(r'^(\d+\.\d+\.\d+)-letknow\.[1-9]\d*$', r'\1', version)
         found_versions[version].append(path)
 
     if len(found_versions) != 1:
