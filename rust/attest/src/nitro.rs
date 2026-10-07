@@ -14,7 +14,7 @@ use boring_signal::ecdsa::EcdsaSig;
 use boring_signal::nid::Nid;
 use boring_signal::stack::Stack;
 use boring_signal::x509::store::X509StoreBuilder;
-use boring_signal::x509::{X509StoreContext, X509};
+use boring_signal::x509::{X509, X509StoreContext};
 use ciborium::value::Value;
 use sha2::{Digest, Sha384};
 use subtle::ConstantTimeEq;
@@ -101,8 +101,12 @@ impl Envelope {
             .map_err(|_| Error::Cose)?
             .try_into()
             .map_err(|_| Error::Cose)?;
-        let [Value::Bytes(protected), Value::Map(unprotected), Value::Bytes(payload), Value::Bytes(signature)] =
-            parts
+        let [
+            Value::Bytes(protected),
+            Value::Map(unprotected),
+            Value::Bytes(payload),
+            Value::Bytes(signature),
+        ] = parts
         else {
             return Err(Error::Cose);
         };

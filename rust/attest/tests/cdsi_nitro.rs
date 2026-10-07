@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #![cfg(feature = "nitro")]
 
-use attest::{
-    cds2::new_nitro_handshake,
-    nitro::{self, ExpectedPcrs},
-};
+use std::time::{Duration, SystemTime};
+
+use attest::cds2::new_nitro_handshake;
+use attest::nitro::{self, ExpectedPcrs};
 use ciborium::value::Value;
 use prost::Message;
-use std::time::{Duration, SystemTime};
 
 const HANDSHAKE: &[u8] = include_bytes!("data/cdsi_nitro_handshake.dat");
 #[derive(Clone, PartialEq, Message)]
