@@ -1,0 +1,10 @@
+{
+  "verified_at_millis": 1791366381814,
+  "challenge": "07a6768cec601c71facaf8ac4c44beb3a2ba0ab529d89e22ff14b4eb9ce5d624",
+  "measurements": {
+    "HashAlgorithm": "Sha512_48 { .. }",
+    "PCR0": "3170980d377d42e1fd37bdd0d3b9f8b39264206395c0ded5d46925c2c00db3c713e4df319b611815016b6f5d746c7e3b",
+    "PCR1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+    "PCR2": "4a92c1b110131906aad432cf364ffaac8ed2911b82a104bb4d22eb6466908284fc4df1f28cdbe608fca08dd5dfc43e9d"
+  }
+}

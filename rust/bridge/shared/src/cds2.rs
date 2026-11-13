@@ -46,3 +46,31 @@ fn Cds2ClientState_New(
 fn Cds2Metrics_extract(attestation_msg: &[u8]) -> Result<Cds2Metrics> {
     cds2::extract_metrics(attestation_msg).map(Cds2Metrics)
 }
+
+/// Builds a Nitro client with PCR0, PCR1 and PCR2 from a trusted release manifest.
+/// Measurements are concatenated in that order. The challenge is fresh per connection.
+#[cfg(feature = "ffi")]
+#[bridge_fn(jni = false, node = false)]
+fn NitroCds2ClientState_New(
+    expected_pcrs: &[u8],
+    challenge: &[u8],
+    attestation_msg: &[u8],
+    current_timestamp: Timestamp,
+) -> Result<SgxClientState> {
+    let invalid = || ::attest::enclave::Error::AttestationDataError {
+        reason: "expected three 48-byte PCRs and a 32-byte challenge".into(),
+    };
+    let challenge = challenge.try_into().map_err(|_| invalid())?;
+    let bytes: &[u8; 144] = expected_pcrs.try_into().map_err(|_| invalid())?;
+    let mut pcrs = [[0u8; 48]; 3];
+    for (pcr, source) in pcrs.iter_mut().zip(bytes.chunks_exact(48)) {
+        pcr.copy_from_slice(source);
+    }
+    SgxClientState::new(cds2::new_nitro_handshake(
+        &::attest::nitro::ExpectedPcrs(pcrs),
+        challenge,
+        attestation_msg,
+        std::time::SystemTime::UNIX_EPOCH
+            + std::time::Duration::from_millis(current_timestamp.epoch_millis()),
+    )?)
+}

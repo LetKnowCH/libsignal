@@ -39,6 +39,33 @@ pub fn extract_metrics(attestation_msg: &[u8]) -> Result<HashMap<String, i64>> {
     )?)
 }
 
+/// Starts an experimental CDSI Nitro session using a caller-owned measurement policy.
+/// The caller must generate a fresh challenge and send it before receiving evidence.
+/// Never construct `expected` from measurements supplied by the remote endpoint.
+#[cfg(feature = "nitro")]
+pub fn new_nitro_handshake(
+    expected: &crate::nitro::ExpectedPcrs,
+    challenge: &[u8; 32],
+    attestation_msg: &[u8],
+    current_time: std::time::SystemTime,
+) -> Result<Handshake> {
+    use crate::enclave::{Claims, Error};
+    let invalid = |reason: &str| Error::AttestationDataError {
+        reason: reason.into(),
+    };
+    if attestation_msg.len() > crate::nitro::MAX_DOCUMENT_SIZE + 64 {
+        return Err(invalid("Nitro handshake exceeds size limit"));
+    }
+    let start = cds2::ClientHandshakeStart::decode(attestation_msg)?;
+    if !start.pubkey.is_empty() || !start.endorsement.is_empty() {
+        return Err(invalid("unexpected fields in Nitro handshake"));
+    }
+    let public_key = crate::nitro::verify(&start.evidence, expected, challenge, current_time)
+        .map_err(|e| invalid(&e.to_string()))?;
+    let claims = Claims::from_custom_claims(HashMap::from([("pk".into(), public_key.to_vec())]))?;
+    Ok(Handshake::with_claims(claims, HandshakeType::PostQuantum)?.skip_raft_validation())
+}
+
 #[cfg(test)]
 mod test {
     use std::time::{Duration, SystemTime};

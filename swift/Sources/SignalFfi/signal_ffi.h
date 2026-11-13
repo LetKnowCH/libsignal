@@ -2256,6 +2256,8 @@ SignalFfiError *signal_message_new(SignalMutPointerSignalMessage *out, uint8_t m
 
 SignalFfiError *signal_mp4_sanitizer_sanitize(SignalMutPointerSanitizedMetadata *out, SignalConstPointerFfiInputStreamStruct input, uint64_t len);
 
+SignalFfiError *signal_nitro_cds2_client_state_new(SignalMutPointerSgxClientState *out, SignalBorrowedBuffer expected_pcrs, SignalBorrowedBuffer challenge, SignalBorrowedBuffer attestation_msg, uint64_t current_timestamp);
+
 SignalFfiError *signal_online_backup_validator_add_frame(SignalMutPointerOnlineBackupValidator backup, SignalBorrowedBuffer frame);
 
 SignalFfiError *signal_online_backup_validator_destroy(SignalMutPointerOnlineBackupValidator p);

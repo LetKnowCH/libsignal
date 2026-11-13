@@ -5,13 +5,14 @@
 
 Pod::Spec.new do |s|
   s.name             = 'LibSignalClient'
-  s.version          = '0.94.1'
+  s.version          = '0.94.1-letknow.1'
   s.summary          = 'A Swift wrapper library for communicating with the Signal messaging service.'
 
-  s.homepage         = 'https://github.com/signalapp/libsignal'
+  s.homepage         = 'https://github.com/LetKnowCH/libsignal'
   s.license          = 'AGPL-3.0-only'
   s.author           = 'Signal Messenger LLC'
-  s.source           = { :git => 'https://github.com/signalapp/libsignal.git', :tag => "v#{s.version}" }
+  s.source           = { :git => 'https://github.com/LetKnowCH/libsignal.git', :tag => "v#{s.version}" }
+  s.libraries        = 'c++'
 
   s.swift_version    = '5'
   s.platform         = :ios, '15.0'
@@ -39,6 +40,7 @@ Pod::Spec.new do |s|
 
       'LIBSIGNAL_FFI_PREBUILD_ARCHIVE' => "libsignal-client-ios-build-v#{s.version}.tar.gz",
       'LIBSIGNAL_FFI_PREBUILD_CHECKSUM' => ENV.fetch('LIBSIGNAL_FFI_PREBUILD_CHECKSUM', ''),
+      'LIBSIGNAL_FFI_PREBUILD_URL' => ENV.fetch('LIBSIGNAL_FFI_PREBUILD_URL', "https://github.com/LetKnowCH/libsignal/releases/download/v#{s.version}/libsignal-client-ios-build-v#{s.version}.tar.gz"),
 
       'CARGO_BUILD_TARGET[sdk=iphonesimulator*][arch=arm64]' => 'aarch64-apple-ios-sim',
       'CARGO_BUILD_TARGET[sdk=iphonesimulator*][arch=*]' => 'x86_64-apple-ios',
@@ -86,7 +88,7 @@ Pod::Spec.new do |s|
           # Local development
           exit 0
         fi
-        "${PODS_TARGET_SRCROOT}"/bin/fetch_archive.py -u "https://build-artifacts.signal.org/libraries/${LIBSIGNAL_FFI_PREBUILD_ARCHIVE}" -c "${LIBSIGNAL_FFI_PREBUILD_CHECKSUM}" -o "${USER_LIBRARY_DIR}/Caches/org.signal.libsignal"
+        "${PODS_TARGET_SRCROOT}"/bin/fetch_archive.py -u "${LIBSIGNAL_FFI_PREBUILD_URL}" -c "${LIBSIGNAL_FFI_PREBUILD_CHECKSUM}" -o "${USER_LIBRARY_DIR}/Caches/org.signal.libsignal"
       ),
     },
     { name: 'Extract libsignal-ffi prebuild',
@@ -116,6 +118,7 @@ Pod::Spec.new do |s|
     test_spec.preserve_paths = [
       'swift/Tests/*/Resources',
     ]
+    test_spec.resources = ['swift/Tests/*/Resources/cdsi_nitro_*']
     test_pod_target_xcconfig = {
       # Don't also link into the test target.
       'LIBSIGNAL_FFI_LIB_TO_LINK' => '',
