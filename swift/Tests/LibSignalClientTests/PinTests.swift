@@ -71,6 +71,15 @@ class PinTests: TestCaseBase {
         )
     }
 
+    func testLetKnowRecoveryGroupPinHash() throws {
+        let pin = Data("recovery-test".utf8)
+        let salt = Data(base64Encoded: "jxm8ZVf/u4uDU9UIddR3UyevaT/1IfJhI6/RgWj6UPI=")!
+        let expected = try PinHash(normalizedPin: pin, salt: salt)
+        let actual = try PinHash(normalizedPin: pin, letKnowNitroUsername: "nitro-pin-test")
+        XCTAssertEqual(expected.accessKey, actual.accessKey)
+        XCTAssertEqual(expected.encryptionKey, actual.encryptionKey)
+    }
+
     func testSvr2PinHash() throws {
         let pin = Array("password".utf8)
         let username = "username"

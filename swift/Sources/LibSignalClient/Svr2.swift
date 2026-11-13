@@ -11,6 +11,20 @@ import SignalFfi
 ///
 /// See ``SgxClient``
 public class Svr2Client: SgxClient {
+    /// Verifies the pinned LetKnow staging Nitro recovery enclave and its Raft group.
+    public convenience init(letKnowNitroAttestation: Data, currentDate: Date) throws {
+        let milliseconds = currentDate.timeIntervalSince1970 * 1000
+        guard milliseconds.isFinite, milliseconds >= 0, milliseconds < Double(UInt64.max) else {
+            throw SignalError.invalidArgument("Invalid recovery verification time")
+        }
+        let handle = try letKnowNitroAttestation.withUnsafeBorrowedBuffer { evidence in
+            try invokeFnReturningValueByPointer(.init()) {
+                signal_nitro_svr2_client_new($0, evidence, UInt64(milliseconds))
+            }
+        }
+        self.init(owned: NonNull(handle)!)
+    }
+
     public convenience init(
         mrenclave: some ContiguousBytes,
         attestationMessage: some ContiguousBytes,

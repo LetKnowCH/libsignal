@@ -102,6 +102,41 @@ fn new_handshake_with_constants(
     Ok(handshake)
 }
 
+/// Start an experimental recovery session with caller-approved AWS measurements.
+/// The local policy must specify the exact group, database, and replica settings.
+/// This does not select or change any endpoint used by existing clients.
+#[cfg(feature = "nitro-recovery")]
+pub fn new_nitro_handshake(
+    expected: &crate::nitro::ExpectedPcrs,
+    attestation_msg: &[u8],
+    current_time: std::time::SystemTime,
+    expected_raft_config: &RaftConfig,
+) -> Result<Handshake> {
+    let invalid = |reason: String| Error::AttestationDataError { reason };
+    if attestation_msg.len() > crate::nitro::MAX_DOCUMENT_SIZE + 64 {
+        return Err(invalid(
+            "Nitro recovery handshake exceeds size limit".into(),
+        ));
+    }
+    let start = svr::ClientHandshakeStart::decode(attestation_msg)?;
+    if !start.endorsement.is_empty() {
+        return Err(invalid("unexpected recovery endorsement".into()));
+    }
+    // Protobuf ignores the upstream test_only_pubkey field. Trust only signed claims.
+    let data = crate::nitro::verify_recovery(
+        &start.evidence,
+        expected,
+        expected_raft_config,
+        current_time,
+    )
+    .map_err(|e| invalid(e.to_string()))?;
+    Handshake::with_claims(
+        crate::enclave::Claims::from_attestation_data(data)?,
+        HandshakeType::PostQuantum,
+    )?
+    .validate(expected_raft_config)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, SystemTime};
@@ -109,6 +144,51 @@ mod tests {
     use const_str::hex;
 
     use super::*;
+
+    #[cfg(feature = "nitro-recovery")]
+    #[test]
+    fn attest_hardware_recovery_fixtures() {
+        // Captured from two non-debug enclaves on one temporary AWS host.
+        // These are historical fixtures, not approved production measurements.
+        let pcrs = crate::nitro::ExpectedPcrs([
+            hex!(
+                "b75eec9b90e399594c1fd488a43fc3233acda155db6bfc38fc5185b8f73dbb419fd950f87fe61d08a0a99bcdcea59b19"
+            ),
+            hex!(
+                "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493"
+            ),
+            hex!(
+                "488660d2a072cd556dbfc2228ed377a427bd40bdb7586b4a2cfb44da8fc9fa292febcfbe4df22b7792aa5b37adde6100"
+            ),
+        ]);
+        let captured_at = SystemTime::UNIX_EPOCH + Duration::from_secs(1791884613);
+        for (db_version, group_id, evidence) in [
+            (
+                2,
+                11400939209124358278,
+                &include_bytes!("../tests/data/recovery_nitro_db2.dat")[..],
+            ),
+            (
+                4,
+                1632869189295726221,
+                &include_bytes!("../tests/data/recovery_nitro_db4.dat")[..],
+            ),
+        ] {
+            let mut policy = RaftConfig {
+                min_voting_replicas: 1,
+                max_voting_replicas: 3,
+                super_majority: 0,
+                group_id,
+                db_version,
+                attestation_timeout: 3600,
+                simulated: false,
+            };
+            let handshake = new_nitro_handshake(&pcrs, evidence, captured_at, &policy).unwrap();
+            assert!(!handshake.initial_request().is_empty());
+            policy.db_version = if db_version == 2 { 4 } else { 2 };
+            assert!(new_nitro_handshake(&pcrs, evidence, captured_at, &policy).is_err());
+        }
+    }
 
     #[test]
     fn attest_svr2() {

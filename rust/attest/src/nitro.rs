@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Adapted for the experimental LetKnow CDSI protocol from libsignal's former Nitro verifier.
 
-//! AWS Nitro attestation verification for the synthetic CDSI prototype.
+//! AWS Nitro attestation verification for experimental protected services.
 //! Trust comes from the pinned AWS root and caller-owned PCRs, never from the peer.
 
 use std::collections::BTreeMap;
@@ -63,6 +63,21 @@ pub fn verify(
     let document = Document::parse(&envelope.payload)?;
     envelope.verify_signature(&document, now)?;
     document.verify_claims(expected, challenge, now)
+}
+
+/// Verify the upstream recovery protocol, which binds protobuf claims in user_data.
+/// Recovery evidence has no request nonce. Its age limit comes from local policy.
+#[cfg(feature = "nitro-recovery")]
+pub(crate) fn verify_recovery(
+    evidence: &[u8],
+    expected: &ExpectedPcrs,
+    config: &crate::svr2::RaftConfig,
+    now: SystemTime,
+) -> Result<crate::proto::svr::AttestationData, Error> {
+    let envelope = Envelope::parse(evidence)?;
+    let document = Document::parse(&envelope.payload)?;
+    envelope.verify_signature(&document, now)?;
+    document.verify_recovery_claims(expected, config, now)
 }
 
 fn decode(bytes: &[u8]) -> Result<Value, Error> {
@@ -173,6 +188,53 @@ struct Document {
 }
 
 impl Document {
+    #[cfg(feature = "nitro-recovery")]
+    fn verify_recovery_claims(
+        &self,
+        expected: &ExpectedPcrs,
+        config: &crate::svr2::RaftConfig,
+        now: SystemTime,
+    ) -> Result<crate::proto::svr::AttestationData, Error> {
+        use prost::Message;
+        if config.simulated
+            || !matches!(config.db_version, 2 | 4)
+            || config.attestation_timeout == 0
+            || config.min_voting_replicas == 0
+            || config.max_voting_replicas < config.min_voting_replicas
+            || !self.public_key.is_empty()
+            || !self.nonce.is_empty()
+        {
+            return Err(Error::KeyBinding);
+        }
+        let now = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_err(|_| Error::Time)?;
+        let issued = Duration::from_millis(self.timestamp);
+        if issued > now.saturating_add(CLOCK_SKEW)
+            || now.saturating_sub(issued) > Duration::from_secs(config.attestation_timeout.into())
+        {
+            return Err(Error::Time);
+        }
+        for (index, approved) in expected.0.iter().enumerate() {
+            let actual = self.pcrs.get(&index).ok_or(Error::Measurements)?;
+            if approved.iter().all(|b| *b == 0) || !bool::from(actual.ct_eq(approved)) {
+                return Err(Error::Measurements);
+            }
+        }
+        let data = crate::proto::svr::AttestationData::decode(self.user_data.as_slice())
+            .map_err(|_| Error::KeyBinding)?;
+        if data.public_key.len() != 32
+            || data.public_key.iter().all(|b| *b == 0)
+            || data
+                .group_config
+                .as_ref()
+                .is_none_or(|actual| config != actual)
+        {
+            return Err(Error::KeyBinding);
+        }
+        Ok(data)
+    }
+
     fn parse(bytes: &[u8]) -> Result<Self, Error> {
         let entries = decode(bytes)?.into_map().map_err(|_| Error::Document)?;
         let mut fields = BTreeMap::new();
@@ -349,6 +411,136 @@ mod tests {
     }
     fn expected() -> ExpectedPcrs {
         ExpectedPcrs([[1; 48], [2; 48], [3; 48]])
+    }
+
+    #[cfg(feature = "nitro-recovery")]
+    #[test]
+    fn recovery_binds_database_group_and_replica_policy() {
+        use prost::Message;
+
+        use crate::proto::svr;
+        use crate::svr2::RaftConfig;
+        let mut policy = RaftConfig {
+            group_id: 123,
+            min_voting_replicas: 1,
+            max_voting_replicas: 3,
+            super_majority: 0,
+            db_version: 2,
+            attestation_timeout: 3600,
+            simulated: false,
+        };
+        let group = svr::RaftGroupConfig {
+            group_id: 123,
+            min_voting_replicas: 1,
+            max_voting_replicas: 3,
+            super_majority: 0,
+            db_version: 2,
+            attestation_timeout: 3600,
+            simulated: false,
+        };
+        let mut document = claims();
+        document.nonce.clear();
+        let mut data = svr::AttestationData {
+            public_key: vec![4; 32],
+            group_config: Some(group.clone()),
+        };
+        document.user_data = data.encode_to_vec();
+        assert!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now())
+                .is_ok()
+        );
+        let mut alternatives = vec![];
+        let mut altered = group.clone();
+        altered.group_id += 1;
+        alternatives.push(altered);
+        let mut altered = group.clone();
+        altered.min_voting_replicas += 1;
+        alternatives.push(altered);
+        let mut altered = group.clone();
+        altered.max_voting_replicas += 1;
+        alternatives.push(altered);
+        let mut altered = group.clone();
+        altered.super_majority += 1;
+        alternatives.push(altered);
+        let mut altered = group.clone();
+        altered.db_version = 4;
+        alternatives.push(altered);
+        let mut altered = group.clone();
+        altered.attestation_timeout += 1;
+        alternatives.push(altered);
+        let mut altered = group.clone();
+        altered.simulated = true;
+        alternatives.push(altered);
+        for altered in alternatives {
+            data.group_config = Some(altered);
+            document.user_data = data.encode_to_vec();
+            assert_eq!(
+                document
+                    .verify_recovery_claims(&expected(), &policy, now())
+                    .unwrap_err(),
+                Error::KeyBinding
+            );
+        }
+        policy.db_version = 4;
+        data.group_config = Some(svr::RaftGroupConfig {
+            db_version: 4,
+            ..group
+        });
+        document.user_data = data.encode_to_vec();
+        assert!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now())
+                .is_ok()
+        );
+        assert_eq!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now() + Duration::from_secs(3601))
+                .unwrap_err(),
+            Error::Time
+        );
+        assert_eq!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now() - Duration::from_secs(31))
+                .unwrap_err(),
+            Error::Time
+        );
+        let mut pcrs = expected();
+        pcrs.0[0] = [0; 48];
+        assert_eq!(
+            document
+                .verify_recovery_claims(&pcrs, &policy, now())
+                .unwrap_err(),
+            Error::Measurements
+        );
+        document.nonce.push(1);
+        assert!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now())
+                .is_err()
+        );
+        document.nonce.clear();
+        data.public_key.fill(0);
+        document.user_data = data.encode_to_vec();
+        assert!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now())
+                .is_err()
+        );
+        data.public_key = vec![4; 32];
+        data.group_config = None;
+        document.user_data = data.encode_to_vec();
+        assert!(
+            document
+                .verify_recovery_claims(&expected(), &policy, now())
+                .is_err()
+        );
+        // The CDSI challenge protocol must remain distinct.
+        assert!(
+            claims()
+                .verify_recovery_claims(&expected(), &policy, now())
+                .is_err()
+        );
     }
 
     #[test]

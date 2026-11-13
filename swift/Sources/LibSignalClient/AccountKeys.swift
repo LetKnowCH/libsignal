@@ -97,6 +97,18 @@ public class PinHash: NativeHandleOwner<SignalMutPointerPinHash>, @unchecked Sen
         }
     }
 
+    /// Derives the PIN keys for the pinned LetKnow staging Nitro recovery group.
+    public convenience init(normalizedPin: Data, letKnowNitroUsername: String) throws {
+        let handle = try normalizedPin.withUnsafeBorrowedBuffer { pin in
+            try letKnowNitroUsername.withCString { username in
+                try invokeFnReturningValueByPointer(.init()) {
+                    signal_nitro_svr2_pin_hash_from_username($0, pin, username)
+                }
+            }
+        }
+        self.init(owned: NonNull(handle)!)
+    }
+
     /// Hash a pin for use with a remote SecureValueRecovery1 service.
     ///
     /// Note: This should be used with SVR1 only. For SVR1, the salt should be the backup id.

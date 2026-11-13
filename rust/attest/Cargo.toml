@@ -17,6 +17,8 @@ workspace = true
 [features]
 # Experimental LetKnow CDSI verification. Existing SGX callers remain unchanged.
 nitro = ["dep:ciborium", "dep:subtle"]
+# Recovery prototype only; no production endpoint selects this verifier.
+nitro-recovery = ["nitro"]
 
 [dependencies]
 asn1 = { workspace = true }
