@@ -2258,6 +2258,10 @@ SignalFfiError *signal_mp4_sanitizer_sanitize(SignalMutPointerSanitizedMetadata 
 
 SignalFfiError *signal_nitro_cds2_client_state_new(SignalMutPointerSgxClientState *out, SignalBorrowedBuffer expected_pcrs, SignalBorrowedBuffer challenge, SignalBorrowedBuffer attestation_msg, uint64_t current_timestamp);
 
+SignalFfiError *signal_nitro_svr2_client_new(SignalMutPointerSgxClientState *out, SignalBorrowedBuffer attestation_msg, uint64_t current_timestamp);
+
+SignalFfiError *signal_nitro_svr2_pin_hash_from_username(SignalMutPointerPinHash *out, SignalBorrowedBuffer pin, const char *username);
+
 SignalFfiError *signal_online_backup_validator_add_frame(SignalMutPointerOnlineBackupValidator backup, SignalBorrowedBuffer frame);
 
 SignalFfiError *signal_online_backup_validator_destroy(SignalMutPointerOnlineBackupValidator p);

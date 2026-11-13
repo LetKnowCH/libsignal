@@ -81,6 +81,32 @@ const DOMAIN_CONFIG_EXPERIMENTAL_CHAT_H2: DomainConfig = DomainConfig {
     },
 };
 
+#[cfg(target_os = "ios")]
+const DOMAIN_CONFIG_CHAT_STAGING: DomainConfig = DomainConfig {
+    ip_v4: &[],
+    ip_v6: &[],
+    connect: ConnectionConfig {
+        service: ServiceName("chat"),
+        hostname: "chat.stage.letknow.info",
+        port: DEFAULT_HTTPS_PORT,
+        cert: RootCertificates::FromStaticDers(&[include_bytes!("../res/letknow-stage.cer")]),
+        min_tls_version: Some(SslVersion::TLS1_3),
+        http_version: Some(HttpVersion::Http1_1),
+        confirmation_header_name: Some(TIMESTAMP_HEADER_NAME),
+        proxy: None,
+    },
+};
+
+#[cfg(target_os = "ios")]
+const DOMAIN_CONFIG_EXPERIMENTAL_CHAT_H2_STAGING: DomainConfig = DomainConfig {
+    connect: ConnectionConfig {
+        http_version: Some(HttpVersion::Http2),
+        ..DOMAIN_CONFIG_CHAT_STAGING.connect
+    },
+    ..DOMAIN_CONFIG_CHAT_STAGING
+};
+
+#[cfg(not(target_os = "ios"))]
 const DOMAIN_CONFIG_CHAT_STAGING: DomainConfig = DomainConfig {
     ip_v4: &[
         ip_addr!(v4, "76.223.72.142"),
@@ -105,6 +131,7 @@ const DOMAIN_CONFIG_CHAT_STAGING: DomainConfig = DomainConfig {
     },
 };
 
+#[cfg(not(target_os = "ios"))]
 const DOMAIN_CONFIG_EXPERIMENTAL_CHAT_H2_STAGING: DomainConfig = DomainConfig {
     ip_v4: &[],
     ip_v6: &[],

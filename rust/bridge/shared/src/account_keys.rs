@@ -131,3 +131,12 @@ pub fn BackupKey_DeriveThumbnailTransitEncryptionKey(
     let backup_key: BackupKey = BackupKey(*backup_key);
     backup_key.derive_thumbnail_transit_encryption_key_data(media_id)
 }
+
+#[cfg(feature = "ffi")]
+#[bridge_fn(jni = false, node = false)]
+pub fn NitroSvr2PinHash_FromUsername(pin: &[u8], username: String) -> Result<PinHash> {
+    PinHash::create(
+        pin,
+        &PinHash::make_salt(&username, crate::svr2::NITRO_PIN_GROUP),
+    )
+}
